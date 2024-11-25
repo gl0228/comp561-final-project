@@ -1,0 +1,14 @@
+probability_ranking,qseqid,sseqid,database_start,database_end,log_probability
+1,random_query_sequence,database,427621,428620,-59.097966302154425
+2,random_query_sequence,database,562492,563491,-3881.501092993158
+3,random_query_sequence,database,571827,572826,-3925.892741274807
+4,random_query_sequence,database,239896,240895,-3059.964691531172
+5,random_query_sequence,database,302248,303247,-4224.870547317273
+6,random_query_sequence,database,507783,508782,-4059.623689195668
+7,random_query_sequence,database,516617,517616,-4284.498249976871
+8,random_query_sequence,database,523095,524094,-4200.909339443608
+9,random_query_sequence,database,530722,531721,-4181.937269102657
+10,random_query_sequence,database,539644,540643,-4658.172354307726
+11,random_query_sequence,database,542702,543701,-3624.5492631253364
+12,random_query_sequence,database,583931,584930,-4376.059118401534
+13,random_query_sequence,database,604396,604465,-223.07002089857664
