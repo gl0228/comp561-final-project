@@ -12,23 +12,6 @@ def fasta_to_array(fasta_file):
     
     return []
 
-# Get array for database sequence
-database_array = fasta_to_array("database.fasta")
-# Get array for query sequence
-query_sequence = fasta_to_array("query_sequence.fasta")
-# Get length for database sequence
-database_length = len(database_array)
-# Get length for query sequence
-query_length = len(query_sequence)
-
-# Variable to turn heuristic on/off
-# The heuristic eliminates a match if it exceeds a certain number of low probability nucleotides in a row
-HEURISTIC = False
-# The number of consecutive low probability nucleotides before the algorithm discards the sequence
-HEURISTIC_NUM = 10
-# The probability that is considered low for the heuristic
-HEURISTIC_PROB = 0.1
-
 # BLAST command
 # To get more matches, increase evalue or word_size 
 blastn_cline = NcbiblastnCommandline(
@@ -86,7 +69,6 @@ def get_positional_probabilities(database_array, probability_array):
 probability_array = probability_file_to_array("database_probs.txt")
 # Get the dictionary with the probabilities of each nucleotide at each position
 positional_probabilities = get_positional_probabilities(database_array, probability_array)
-
 # Read the tabular BLAST output and write to CSV
 with open("blast_results.tsv") as tsv_file, open("blast_results.csv", mode='w', newline='') as csv_file:
     tsv_reader = csv.reader(tsv_file, delimiter='\t')
@@ -131,7 +113,6 @@ with open("blast_results.tsv") as tsv_file, open("blast_results.csv", mode='w', 
         # The start and end indices of the query after extending, to match the length of the query sequence
         extended_query_start = query_start - left_extension
         extended_query_end = query_end + right_extension - 1
-
 
         start_end_tuple = (extended_database_start, extended_database_end )
 

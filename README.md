@@ -1,3 +1,37 @@
+# Probabilistic Sequence Matcher with BLAST + Heuristic Filtering
+
+This project integrates **BLAST** sequence alignment with a **custom probability-based scoring system** to identify the most likely matches between a query DNA sequence and a database sequence, using positional nucleotide probabilities.
+
+## What It Does
+
+1. **Runs BLAST (blastn)** to find approximate matches between a query and a database sequence.
+2. **Extends** each BLAST match to align fully with the query sequence.
+3. **Calculates log-probabilities** of each extended match using a per-base probability model.
+4. **Ranks matches** based on their total log-probability.
+5. Optionally applies a **heuristic filter** to reject matches with too many low-probability bases in a row.
+6. Outputs a CSV file with all ranked matches and highlights the **most probable match**.
+
+## Input Files
+
+- `database.fasta`: The reference DNA sequence
+- `query_sequence.fasta`: The query DNA sequence
+- `database_probs.txt`: A list of probabilities (one per base in the database)
+
+## Output Files
+
+- `blast_results.tsv`: Raw BLAST tabular results
+- `blast_results.csv`: Formatted BLAST results with headers
+- `final_result.csv`: Ranked matches with log-probabilities and positional info
+
+## Example Output
+
+```bash
+The max match is  (132, 163)
+The found string is  ATCGGATCCTGACGTACGTAGTCGATCGTAGCTAGTCAGT
+
+
+
+
 How to run the algorithm?
 1) Install BLAST algorithm
 

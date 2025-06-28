@@ -41,15 +41,11 @@ def get_positional_probabilities(database_array, probability_array):
 
 positional_probabilities = get_positional_probabilities(database_array, probability_array)
 max_index = 604465
-min_length = 10
-max_length = 1000
+length = 1000
 
 def generate_random_sequence(probabilities, max_position=604465):
     # Randomly choose a starting position between 0 and max_position
     start_position = random.randint(0, max_position)
-
-    # Randomly choose a length between 10 and the maximum possible length
-    length = random.randint(min_length, max_length)
 
     sequence = []
     end_position = start_position + length - 1

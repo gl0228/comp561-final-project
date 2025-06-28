@@ -1,0 +1,227 @@
+from Bio.Blast.Applications import NcbiblastnCommandline
+from Bio import SeqIO
+import csv
+import math
+import random
+from tqdm.notebook import tqdm
+import matplotlib.pyplot as plt
+import time
+import numpy as np
+from mpl_toolkits.mplot3d import Axes3D
+
+def fasta_to_array(fasta_file):
+    for record in SeqIO.parse(fasta_file, "fasta"):
+        return list(str(record.seq))
+    return []
+
+def probability_file_to_array(file_path):
+    with open(file_path, 'r') as file:
+        return [float(token) for token in file.read().split()]
+
+def get_positional_probabilities(database_array, probability_array): 
+    index_dict = {}
+    nucleotides = ['A', 'T', 'G', 'C']
+
+    for i in range(len(database_array)):
+        nucleotide_probabilities = {}
+        other_probability = round((1 - probability_array[i]) / 3, 3)
+        for nucleotide in nucleotides:
+            if nucleotide == database_array[i]:
+                nucleotide_probabilities[database_array[i]] = probability_array[i]
+            else:
+                nucleotide_probabilities[nucleotide] = other_probability
+        index_dict[i] = nucleotide_probabilities
+    return index_dict
+
+def probabilistic_blast(database_array, probability_array, query_path='query_sequence.fasta', blast_db_path='database/my_database', heuristic=False, heuristic_num=10, heuristic_prob=0.1, word_size=4):
+    positional_probabilities = get_positional_probabilities(database_array, probability_array)
+    sequence_array = fasta_to_array(query_path)
+    query_length = len(sequence_array)
+    database_length = len(database_array)
+
+    # Run BLAST
+    blastn_cline = NcbiblastnCommandline(
+        query=query_path,
+        db=blast_db_path,
+        evalue=1000,
+        word_size=word_size,
+        perc_identity=0,
+        outfmt=6,
+        out="-",
+        ungapped=True,
+        strand="plus"
+    )
+    stdout, stderr = blastn_cline()
+    blast_results = stdout.splitlines()
+
+    match_probability = {}
+    max_prob = float('-inf')
+    max_match = (0, 0)
+    epsilon = 1e-10
+    unlikely_match = False
+
+    for row in csv.reader(blast_results, delimiter='\t'):
+        probability = math.log(1)
+
+        # Start and end indices of the BLAST match in the query sequence
+        query_start = int(row[6]) - 1
+        query_end = int(row[7]) - 1
+
+        # Start and end indices of the BLAST match in the database sequence
+        database_start = int(row[8]) - 1
+        database_end = int(row[9]) - 1
+        diff = database_start - query_start
+
+        # The number of nucleotides to extend on the left of the seed, to match the length of the query sequence
+        left_extension = query_start if query_start <= database_start else database_start
+        # The number of nucleotides to extend on the right of the seed
+        right_extension = query_length - query_end if query_length - query_end <= database_length - database_end else database_length - database_end
+
+        # The start and end indices of the database after extending, to match the length of the query sequence
+        extended_database_start = database_start - left_extension 
+        extended_database_end = database_end + right_extension - 1
+
+        # The start and end indices of the query after extending, to match the length of the query sequence
+        extended_query_start = query_start - left_extension
+        extended_query_end = query_end + right_extension - 1
+
+        start_end_tuple = (extended_database_start, extended_database_end)
+
+        consecutive_low_prob_count = 0
+        for index in range(extended_database_start, extended_database_end):
+            nucleotide = sequence_array[extended_query_start]
+            nucleotide_prob = positional_probabilities[index][nucleotide]
+
+            if heuristic: 
+                if nucleotide_prob < heuristic_prob:
+                    consecutive_low_prob_count += 1
+                else:
+                    consecutive_low_prob_count = 0
+                if consecutive_low_prob_count >= heuristic_num:
+                    unlikely_match = True
+                    consecutive_low_prob_count = 0
+                    continue
+
+            probability += math.log(nucleotide_prob) if nucleotide_prob > 0 else math.log(epsilon)
+            extended_query_start += 1
+
+        if unlikely_match:
+            unlikely_match = False
+            continue
+
+        if probability > max_prob:
+            max_prob = probability
+            max_match = start_end_tuple
+        
+        match_probability[start_end_tuple] = probability
+
+    sorted_match_probabilities = dict(sorted(match_probability.items(), key=lambda item: item[1], reverse=True))
+    
+    return sorted_match_probabilities
+
+def generate_random_sequence(probabilities, length, max_position=604465):
+    # Randomly choose a starting position between 0 and max_position
+    start_position = random.randint(0, max_position)
+
+    sequence = []
+    end_position = start_position + length - 1
+
+    for position in range(start_position, end_position + 1):
+        if position not in probabilities:
+            raise ValueError(f"Position {position} is out of range of the probability dictionary.")
+        
+        nucleotide_probs = probabilities[position]
+        nucleotides = list(nucleotide_probs.keys())
+        probs = list(nucleotide_probs.values())
+
+        # Randomly choose a nucleotide based on the probabilities
+        chosen_nucleotide = random.choices(nucleotides, weights=probs, k=1)[0]
+        sequence.append(chosen_nucleotide)
+
+    sequence_string = ''.join(sequence)
+    with open("query_sequence.fasta", "w") as fasta_file:
+        fasta_file.write(">random_query_sequence\n")
+        fasta_file.write(sequence_string + "\n")
+
+    return sequence_string, start_position, end_position, length
+
+# File paths
+database_path = 'database.fasta'
+sequence_path = 'query_sequence.fasta'
+probability_path = 'database_probs.txt'
+
+# Load database and probabilities
+database_array = fasta_to_array(database_path)
+probability_array = probability_file_to_array(probability_path)
+positional_probabilities = get_positional_probabilities(database_array, probability_array)
+
+# Define the parameter ranges you want to test
+# Example word sizes to test
+heuristic_num = list(range(2, 21, 2)) # Example sequence lengths to test
+heuristic_prob = [x / 100.0 for x in range(10, 50, 5)]
+
+runtimes = np.zeros((len(heuristic_num), len(heuristic_prob)))
+
+# Assuming database_array and probability_array are already defined
+# e.g.,
+# database_array = fasta_to_array("database.fasta")
+# probability_array = probability_file_to_array("database_probs.txt")
+#
+# If not already defined in your environment, uncomment and run:
+# database_array = fasta_to_array("database.fasta")
+# probability_array = probability_file_to_array("database_probs.txt")
+
+# Evaluate the runtime for each combination of word_size and seq_length
+for i, w in enumerate(heuristic_num):
+    for j, s in enumerate(heuristic_prob):
+        # Generate a new random query sequence of length s
+        # Adjust min_length and max_length as needed. Here we fix both to s to ensure exact length.
+        generate_random_sequence(
+            get_positional_probabilities(database_array, probability_array), 
+            50
+        )
+
+        total_runtime = 0
+        for k in range(5):
+            print("The ", k, "th iteration")
+            start_time = time.time()
+
+            # Run the probabilistic BLAST with the specified word_size
+            # Using default heuristic settings, feel free to adjust
+            probabilistic_blast(
+                database_array, 
+                probability_array, 
+                query_path='query_sequence.fasta',
+                blast_db_path='database/my_database', 
+                heuristic=True, 
+                heuristic_num=w, 
+                heuristic_prob=s,
+                word_size=4
+            )
+
+            end_time = time.time()
+            runtime = end_time - start_time
+            print("The runtime is ", runtime)
+            total_runtime+=runtime
+
+        runtime = total_runtime / 5
+        print("The run time is ", runtime)
+        runtimes[i, j] = runtime
+        print(f"Heuristic num is : {w}, heuristic prob is: {s}, Time: {runtime:.4f} s")
+
+# Now we have a matrix of runtimes. Let's create a 3D plot.
+W, S = np.meshgrid(heuristic_num, heuristic_prob, indexing='ij')
+
+fig = plt.figure(figsize=(10, 7))
+ax = fig.add_subplot(111, projection='3d')
+
+# Plot the surface
+surf = ax.plot_surface(W, S, runtimes, cmap='viridis', edgecolor='none')
+
+ax.set_xlabel('Heuristic Number (Number of Consecutive Low Probability Nucleotides)')
+ax.set_ylabel('Heuristic probability')
+ax.set_zlabel('Running Time (s)')
+ax.set_title('Alignment Algorithm Runtime')
+
+fig.colorbar(surf, shrink=0.5, aspect=5)
+plt.show()
